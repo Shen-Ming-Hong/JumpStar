@@ -49,10 +49,42 @@ AI Agent 應該：
 
 ### 依賴函式庫
 
-專案需要以下函式庫（在 `platformio.ini` 中定義）：
+在 `platformio.ini` 中使用 `lib_deps` 定義專案依賴：
 
--   `FastLED` 或 `Adafruit_NeoPixel` - 用於控制 WS2812B
--   紅外線感測器通常使用數位 I/O，無需額外函式庫
+#### 從 GitHub 安裝（專案標準）
+
+```ini
+[env:uno]
+lib_deps =
+    # 使用特定分支
+    https://github.com/FastLED/FastLED.git#master
+
+    # 使用特定標籤/版本（推薦）
+    https://github.com/FastLED/FastLED.git#3.6.0
+
+    # 使用特定 commit（最穩定）
+    https://github.com/FastLED/FastLED.git#a1b2c3d4
+```
+
+**⚠️ 重要：本專案一律使用 Git URL 方式安裝函式庫，不使用 PlatformIO Registry**
+
+#### WS2812B LED 函式庫選擇
+
+-   **FastLED** (推薦)
+
+    -   更高效能，支援多種 LED 型號
+    -   提供豐富的色彩管理和數學函數
+    -   GitHub: `https://github.com/FastLED/FastLED`
+
+-   **Adafruit NeoPixel**
+    -   更簡單易用，適合初學者
+    -   較佔記憶體，但穩定性高
+    -   GitHub: `https://github.com/adafruit/Adafruit_NeoPixel`
+
+#### 紅外線感測器
+
+-   使用數位 I/O (`digitalRead()`)，通常無需額外函式庫
+-   如需進階功能可考慮去彈跳函式庫：`https://github.com/thomasfredericks/Bounce2`
 
 ## 編碼規範與模式
 
