@@ -116,7 +116,6 @@ bool readUltrasonicSensor();   // 讀取超音波感測器
 void updateJumpState();                            // 更新跳躍狀態機
 void checkIdleTimeout();                           // 檢查逾時並執行閃爍
 void displayCurrentLEDs();                         // 顯示當前累積的 LED
-void blinkAndClear();                              // 閃爍後清空
 CRGB getColorForPosition(int position, int total); // 根據位置取得漸變顏色
 void clearLEDs();                                  // 清空 LED
 void testLEDPattern();                             // LED 測試動畫
@@ -487,89 +486,6 @@ void displayCurrentLEDs()
   }
 
   FastLED.show();
-}
-
-// ============================================================================
-// 閃爍後清空（逾時效果）
-// ============================================================================
-
-void blinkAndClear()
-{
-  isBlinking = true;
-
-  Serial.print(F("[閃爍] 開始閃爍 "));
-  Serial.print(BLINK_COUNT);
-  Serial.println(F(" 次..."));
-
-  // 閃爍指定次數
-  for (int i = 0; i < BLINK_COUNT; i++)
-  {
-    // 熄滅階段
-    clearLEDs();
-
-    // 分段檢查感測器（避免錯過跳躍）
-    for (int t = 0; t < BLINK_INTERVAL; t += 10)
-    {
-      delay(10);
-
-      // 檢查是否有新的跳躍（狀態改變）
-      bool currentReading = readSensorWithDebounce();
-      if (currentReading != lastStableState)
-      {
-        Serial.println(F("[閃爍] 偵測到新跳躍，中斷閃爍！"));
-
-        // 恢復當前燈效
-        displayCurrentLEDs();
-        isBlinking = false;
-
-        // updateJumpState 會處理計數邏輯
-        return; // 立即結束閃爍
-      }
-    }
-
-    // 點亮階段（顯示當前累積的燈數）- 同步到 4 條燈條
-    for (int j = 0; j < currentLEDCount; j++)
-    {
-      CRGB color = getColorForPosition(j, currentLEDCount);
-      for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
-      {
-        leds[strip][j] = color;
-      }
-    }
-    FastLED.show();
-
-    // 分段檢查感測器（避免錯過跳躍）
-    for (int t = 0; t < BLINK_INTERVAL; t += 10)
-    {
-      delay(10);
-
-      // 檢查是否有新的跳躍（狀態改變）
-      bool currentReading = readSensorWithDebounce();
-      if (currentReading != lastStableState)
-      {
-        Serial.println(F("[閃爍] 偵測到新跳躍，中斷閃爍！"));
-
-        // 恢復當前燈效
-        displayCurrentLEDs();
-        isBlinking = false;
-
-        // updateJumpState 會處理計數邏輯
-        return; // 立即結束閃爍
-      }
-    }
-  }
-
-  // 閃爍完成後才清空
-  clearLEDs();
-
-  // 重置計數和狀態
-  jumpCount = 0;
-  currentLEDCount = 0;
-  isBlinking = false;
-  isRainbowMode = false;
-  rainbowHue = 0;
-
-  Serial.println(F("[閃爍] 完成,已重置跳躍計數"));
 }
 
 // ============================================================================
