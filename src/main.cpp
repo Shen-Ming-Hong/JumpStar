@@ -5,46 +5,45 @@
 // 硬體常數定義
 // ============================================================================
 
-// ========== 感測器選擇 ==========
-// 設定為 true 使用超音波，設定為 false 使用紅外線
-#define USE_ULTRASONIC true
-
-// ========== 紅外線感測器設定 ==========
-const int IR_SENSOR_PIN = 2; // 紅外線感測器腳位（D2）
-
 // ========== 超音波感測器設定 ==========
 const int TRIG_PIN = 3;            // 超音波 Trig 腳位（D3）
 const int ECHO_PIN = 4;            // 超音波 Echo 腳位（D4）
-const int DETECTION_DISTANCE = 30; // 偵測距離閘值（公分）
+const int DETECTION_DISTANCE = 50; // 偵測距離閘值（公分）
 
 // ========== WS2813 LED 燈條設定 ==========
-const int LED_PIN = 6;         // LED 資料腳位
-const int NUM_LEDS = 300;      // LED 燈珠數量（300 顆）
-const int LED_BRIGHTNESS = 50; // 亮度限制（0-255，建議不超過 50% 避免電流過載）
+const int NUM_LED_STRIPS = 4;                       // LED 燈條數量
+const int LED_PINS[NUM_LED_STRIPS] = {5, 6, 9, 10}; // LED 資料腳位 (D5, D6, D9, D10)
+const int NUM_LEDS = 37;                            // 每條燈條的 LED 燈珠數量
+const int LED_BRIGHTNESS = 50;                      // 亮度限制(0-255,建議不超過 50% 避免電流過載)
+const bool SYNC_MODE = true;                        // 同步模式:true=4條顯示相同, false=獨立控制
 
-// ⚠️ WS2813 實際接線配置（已測試可運作）：
+// ⚠️ WS2813 實際接線配置(4 條燈條版本):
 //
-// WS2813 燈條有 4 條訊號線（輸入端）：
-//   - DI (Data Input)   → Arduino Pin 6（主要資料輸入）
-//   - BI (Backup Input) → 空接（本專案測試可正常運作）
-//   - GND              → Arduino GND + 電源 GND（必須共地！）
-//   - 5V               → 外部電源 5V（不要用 Arduino 供電！）
+// 每條 WS2813 燈條的訊號線(輸入端):
+//   - DI (Data Input)   → Arduino Pin (5/6/9/10)(主要資料輸入)
+//   - BI (Backup Input) → 空接(本專案測試可正常運作)
+//   - GND              → Arduino GND + 電源 GND(必須共地!)
+//   - 5V               → 外部電源 5V(不要用 Arduino 供電!)
 //
-// 🔧 目前使用的接線方式：
-//    Arduino Pin 6 ------------ DI
-//    BI ------------------------ 空接（不連接）
-//    Arduino GND -------------- GND (燈條)
-//    外部電源 5V --------------- 5V (燈條)
-//    外部電源 GND -------------- GND (與 Arduino GND 共地)
+// 🔧 4 條燈條接線方式:
+//    燈條 1: Arduino Pin 5  ------------ DI
+//    燈條 2: Arduino Pin 6  ------------ DI
+//    燈條 3: Arduino Pin 9  ------------ DI
+//    燈條 4: Arduino Pin 10 ------------ DI
+//    所有 BI ----------------------- 空接(不連接)
+//    Arduino GND ------------------ GND (所有燈條共地)
+//    外部電源 5V ------------------ 5V (所有燈條)
+//    外部電源 GND ----------------- GND (與 Arduino GND 共地)
 //
-// 💡 WS2813 雙訊號說明：
-//    - BI 是備援訊號輸入，當 DI 損壞時可自動切換到 BI
-//    - 本專案測試結果：BI 空接也能正常工作
-//    - 如需使用備援功能：將 BI 連接到 GND 或與 DI 並聯
+// 💡 WS2813 雙訊號說明:
+//    - BI 是備援訊號輸入,當 DI 損壞時可自動切換到 BI
+//    - 本專案測試結果:BI 空接也能正常工作
+//    - 如需使用備援功能:將 BI 連接到 GND 或與 DI 並聯
 //
-// ⚡ 電源注意事項：
-//    - 300 顆 LED 最大電流：300 × 60mA = 18A
-//    - 實際使用（50% 亮度）：約 6A
+// ⚡ 電源注意事項(4 條燈條):
+//    - 4 條 × 37 顆 = 148 顆 LED
+//    - 最大電流:148 × 60mA = 8.88A
+//    - 實際使用(50% 亮度):約 4-5A
 //    - 建議使用 5V 10A 以上電源供應器
 //    - 大量 LED 建議每 50-100 顆注入一次電源
 
@@ -52,46 +51,57 @@ const int LED_BRIGHTNESS = 50; // 亮度限制（0-255，建議不超過 50% 避
 const long SERIAL_BAUD = 9600;
 
 // 去彈跳時間閾值（毫秒）
-const unsigned long DEBOUNCE_DELAY = 50;
+const unsigned long DEBOUNCE_DELAY = 25;
 
 // 跳躍計數參數
-const int MAX_JUMP_COUNT = 20;            // 滿燈所需的跳躍次數（根據國小生體能設定）
-const unsigned long IDLE_TIMEOUT = 5000;  // 無跳躍逾時時間（5 秒）
-const int BLINK_COUNT = 5;                // 熄滅前閃爍次數
-const unsigned long BLINK_INTERVAL = 300; // 閃爍間隔時間（毫秒）
+const int NUM_COLOR_STAGES = 7;                                             // 七彩階段數量
+const int LEDS_PER_JUMP = 3;                                                // 每次跳躍點亮的 LED 數量（可調整：1, 2, 3...）
+const int JUMPS_PER_STAGE = (NUM_LEDS + LEDS_PER_JUMP - 1) / LEDS_PER_JUMP; // 每個顏色階段所需的跳躍次數
+const int MAX_JUMP_COUNT = JUMPS_PER_STAGE * NUM_COLOR_STAGES;              // 總跳躍次數
+const unsigned long IDLE_TIMEOUT = 5000;                                    // 無跳躍逾時時間（5 秒）
+const int BLINK_COUNT = 5;                                                  // 熄滅前閃爍次數
+const unsigned long BLINK_INTERVAL = 300;                                   // 閃爍間隔時間（毫秒）
+
+// 七彩顏色定義(使用 HSV 色相值,間距加大以增加差異性)
+const uint8_t RAINBOW_COLORS[NUM_COLOR_STAGES] = {
+    0,   // 紅色 (Red)
+    28,  // 橙色 (Orange) - 原本 32,調整為更橘
+    64,  // 黃色 (Yellow)
+    96,  // 綠色 (Green)
+    140, // 青色 (Cyan) - 原本 128,調整為更藍
+    170, // 藍色 (Blue) - 原本 160,調整為更深藍
+    200  // 紫紅色 (Magenta) - 原本 192,調整為偏紅的紫
+};
+
+// 彩虹霓虹燈效參數
+const unsigned long RAINBOW_UPDATE_INTERVAL = 30; // 霓虹燈更新間隔(毫秒)
+const uint8_t RAINBOW_HUE_STEP = 2;               // 每次色相變化量
 
 // ============================================================================
 // 全域變數
 // ============================================================================
 
-// LED 陣列
-CRGB leds[NUM_LEDS];
-
-// 跳躍狀態列舉
-enum JumpState
-{
-  GROUNDED, // 在地面
-  IN_AIR,   // 空中
-  LANDING   // 著地（過渡狀態）
-};
-
-// 當前狀態
-JumpState currentState = GROUNDED;
+// LED 陣列(4 條燈條)
+CRGB leds[NUM_LED_STRIPS][NUM_LEDS];
 
 // 感測器狀態（通用）
 bool sensorState = HIGH;            // 當前感測器讀值
 bool lastSensorState = HIGH;        // 上次感測器讀值
+bool lastStableState = HIGH;        // 上次穩定狀態（用於偵測狀態改變）
 unsigned long lastDebounceTime = 0; // 上次去彈跳時間戳
 
 // 超音波相關變數
 long ultrasonicDistance = 0; // 當前測得距離（cm）
 
 // 跳躍計數相關
-unsigned long jumpStartTime = 0; // 跳躍開始時間
-unsigned long lastJumpTime = 0;  // 上次跳躍時間
-int jumpCount = 0;               // 累積跳躍次數
-int currentLEDCount = 0;         // 目前點亮的 LED 數量
-bool isBlinking = false;         // 是否正在閃爍中
+unsigned long jumpStartTime = 0;     // 跳躍開始時間
+unsigned long lastJumpTime = 0;      // 上次跳躍時間
+int jumpCount = 0;                   // 累積跳躍次數
+int currentLEDCount = 0;             // 目前點亮的 LED 數量
+bool isBlinking = false;             // 是否正在閃爍中
+bool isRainbowMode = false;          // 是否進入彩虹霓虹模式
+uint8_t rainbowHue = 0;              // 彩虹霓虹色相值
+unsigned long lastRainbowUpdate = 0; // 上次霓虹燈更新時間
 
 // ============================================================================
 // 函式宣告
@@ -100,7 +110,6 @@ bool isBlinking = false;         // 是否正在閃爍中
 // 感測器讀取函式
 bool readSensorWithDebounce(); // 讀取感測器（含去彈跳）
 long readUltrasonicDistance(); // 讀取超音波距離（cm）
-bool readIRSensor();           // 讀取紅外線感測器
 bool readUltrasonicSensor();   // 讀取超音波感測器
 
 // 狀態機和燈效
@@ -111,6 +120,8 @@ void blinkAndClear();                              // 閃爍後清空
 CRGB getColorForPosition(int position, int total); // 根據位置取得漸變顏色
 void clearLEDs();                                  // 清空 LED
 void testLEDPattern();                             // LED 測試動畫
+void displayRainbowEffect();                       // 顯示彩虹霓虹燈效
+void updateRainbowEffect();                        // 更新彩虹霓虹動畫
 
 // ============================================================================
 // 初始化設定
@@ -123,31 +134,36 @@ void setup()
   Serial.println(F("=== 跳跳星系統啟動 ==="));
   Serial.println(F("系統初始化中..."));
 
-#if USE_ULTRASONIC
-  // 超音波模式
+  // 初始化超音波感測器
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   Serial.println(F("✅ 使用超音波感測器模式"));
   Serial.print(F("✅ 偵測距離閘值: "));
   Serial.print(DETECTION_DISTANCE);
   Serial.println(F(" cm"));
-#else
-  // 紅外線模式
-  pinMode(IR_SENSOR_PIN, INPUT);
-  Serial.println(F("✅ 使用紅外線感測器模式"));
-#endif
 
-  // 初始化 LED 燈條
+  // 初始化 4 條 LED 燈條
   // 注意：某些 WS2813 使用 RGB 色序，某些使用 GRB，請根據實際情況調整
-  FastLED.addLeds<WS2813, LED_PIN, RGB>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2813, 5, RGB>(leds[0], NUM_LEDS);  // 燈條 1 (Pin 5)
+  FastLED.addLeds<WS2813, 6, RGB>(leds[1], NUM_LEDS);  // 燈條 2 (Pin 6)
+  FastLED.addLeds<WS2813, 9, RGB>(leds[2], NUM_LEDS);  // 燈條 3 (Pin 9)
+  FastLED.addLeds<WS2813, 10, RGB>(leds[3], NUM_LEDS); // 燈條 4 (Pin 10)
   FastLED.setBrightness(LED_BRIGHTNESS);
   FastLED.clear();
   FastLED.show();
-  Serial.println(F("✓ LED 燈條初始化完成"));
+  Serial.println(F("✓ 4 條LED 燈條初始化完成"));
+  Serial.print(F("✓ 燈條數量: "));
+  Serial.println(NUM_LED_STRIPS);
+  Serial.print(F("✓ 每條 LED 數量: "));
+  Serial.println(NUM_LEDS);
+  Serial.print(F("✓ 總 LED 數量: "));
+  Serial.println(NUM_LED_STRIPS * NUM_LEDS);
+  Serial.print(F("✓ 模式: "));
+  Serial.println(SYNC_MODE ? F("同步模式") : F("獨立控制模式"));
 
   // 執行 LED 測試動畫
   Serial.println(F("執行 LED 測試動畫..."));
-  testLEDPattern();
+  // testLEDPattern();
 
   Serial.println(F("系統就緒！開始監測跳躍..."));
   Serial.println();
@@ -175,12 +191,10 @@ void loop()
     Serial.print(sensorState ? "無人/跳躍中" : "有人在地面");
     Serial.print(F(")"));
 
-#if USE_ULTRASONIC
-    // 超音波模式額外顯示距離
+    // 顯示超音波距離
     Serial.print(F(" | 距離: "));
     Serial.print(ultrasonicDistance);
     Serial.print(F(" cm"));
-#endif
 
     Serial.println();
 
@@ -188,13 +202,21 @@ void loop()
     lastPrintedState = sensorState;
   }
 
-  // 更新跳躍狀態機
-  updateJumpState();
-
-  // 檢查逾時（非閃爍狀態下才檢查）
-  if (!isBlinking)
+  // 如果在彩虹霓虹模式,持續更新動畫
+  if (isRainbowMode)
   {
-    checkIdleTimeout();
+    updateRainbowEffect();
+  }
+  else
+  {
+    // 更新跳躍狀態機
+    updateJumpState();
+
+    // 檢查逾時(非閃爍狀態下才檢查)
+    if (!isBlinking)
+    {
+      checkIdleTimeout();
+    }
   }
 
   // 小延遲以避免過度頻繁的感測器讀取
@@ -207,14 +229,8 @@ void loop()
 
 bool readSensorWithDebounce()
 {
-  // 根據配置選擇對應的感測器
-  bool reading;
-
-#if USE_ULTRASONIC
-  reading = readUltrasonicSensor();
-#else
-  reading = readIRSensor();
-#endif
+  // 讀取超音波感測器
+  bool reading = readUltrasonicSensor();
 
   // 如果讀值改變，重置去彈跳計時器
   if (reading != lastSensorState)
@@ -230,18 +246,6 @@ bool readSensorWithDebounce()
 
   lastSensorState = reading;
   return sensorState;
-}
-
-// ============================================================================
-// 紅外線感測器讀取
-// ============================================================================
-
-bool readIRSensor()
-{
-  // 直接讀取紅外線數位訊號
-  // LOW = 有人在感應範圍（在地面）
-  // HIGH = 無人（跳躍中）
-  return digitalRead(IR_SENSOR_PIN);
 }
 
 // ============================================================================
@@ -296,72 +300,82 @@ long readUltrasonicDistance()
 }
 
 // ============================================================================
-// 跳躍狀態機更新
+// 跳躍狀態機更新（簡化版：任何狀態改變都算跳躍）
 // ============================================================================
 
 void updateJumpState()
 {
-  // 感測器邏輯：LOW = 有人在感應範圍（在地面），HIGH = 無人（跳躍中）
-  // 持續 LOW = 玩家在地面，尚未跳躍
-  // 變成 HIGH = 玩家離地，開始跳躍
-  // 重新變回 LOW = 玩家落地
+  // 簡化邏輯：只要感測器狀態改變就算跳躍
+  // LOW → HIGH（離地）或 HIGH → LOW（著地）都算一次跳躍
+  // 適合小朋友的小碎步動作
 
-  switch (currentState)
+  // 偵測狀態改變（從穩定狀態變化到新狀態）
+  if (sensorState != lastStableState)
   {
-  case GROUNDED:
-    // 如果感測器變成 HIGH（無人），代表玩家離地
-    if (sensorState == HIGH)
+    // 更新穩定狀態
+    lastStableState = sensorState;
+
+    // 記錄跳躍時間
+    lastJumpTime = millis();
+
+    // 增加跳躍計數
+    jumpCount++;
+
+    // 計算當前顏色階段和該階段的跳躍次數
+    int currentStage = min(jumpCount / JUMPS_PER_STAGE, NUM_COLOR_STAGES - 1);
+    int jumpInCurrentStage = jumpCount % JUMPS_PER_STAGE;
+
+    // 計算當前應點亮的 LED 數量
+    // 每個階段最多點亮 NUM_LEDS，當前階段每跳一次亮 LEDS_PER_JUMP 顆
+    if (jumpInCurrentStage == 0 && jumpCount > 0)
     {
-      jumpStartTime = millis();
-      currentState = IN_AIR;
-      Serial.println(F("[狀態] 玩家離地！"));
+      // 階段完成，全部點亮
+      currentLEDCount = NUM_LEDS;
     }
-    break;
-
-  case IN_AIR:
-    // 如果感測器變回 LOW（有人），代表玩家著地
-    if (sensorState == LOW)
+    else
     {
-      unsigned long airTime = millis() - jumpStartTime;
-      currentState = LANDING;
+      // 當前階段進行中，根據跳躍次數點亮對應數量
+      currentLEDCount = min(jumpInCurrentStage * LEDS_PER_JUMP, NUM_LEDS);
+    }
 
-      Serial.print(F("[狀態] 玩家著地！離地時間: "));
-      Serial.print(airTime);
-      Serial.println(F(" ms"));
+    // 輸出跳躍資訊
+    Serial.print(F("[跳躍] 狀態改變: "));
+    Serial.print(sensorState ? "LOW→HIGH (離地)" : "HIGH→LOW (著地)");
+    Serial.print(F(" | 累積次數: "));
+    Serial.print(jumpCount);
+    Serial.print(F(" / "));
+    Serial.print(MAX_JUMP_COUNT);
+    Serial.print(F(" | 階段: "));
+    Serial.print(currentStage + 1);
+    Serial.print(F("/"));
+    Serial.print(NUM_COLOR_STAGES);
+    Serial.print(F(" ("));
+    Serial.print(jumpInCurrentStage > 0 ? jumpInCurrentStage : JUMPS_PER_STAGE);
+    Serial.print(F("/"));
+    Serial.print(JUMPS_PER_STAGE);
+    Serial.print(F(")"));
+    Serial.print(F(" | LED: "));
+    Serial.print(currentLEDCount);
+    Serial.print(F(" / "));
+    Serial.println(NUM_LEDS);
 
-      // 增加跳躍計數
-      jumpCount++;
-      lastJumpTime = millis();
-
-      // 計算當前應點亮的 LED 數量（按比例分配）
-      // 公式：LED數量 = (跳躍次數 / 滿燈所需次數) × 燈條總數
-      // 範例：30顆燈條: 20次跳躍滿燈，每跳一次亮 1.5 顆
-      //       60顆燈條: 20次跳躍滿燈，每跳一次亮 3 顆
-      currentLEDCount = min((jumpCount * NUM_LEDS) / MAX_JUMP_COUNT, NUM_LEDS);
-
-      Serial.print(F("[計數] 累積跳躍次數: "));
-      Serial.print(jumpCount);
-      Serial.print(F(" / "));
-      Serial.print(MAX_JUMP_COUNT);
-      Serial.print(F(" | LED 數量: "));
-      Serial.print(currentLEDCount);
-      Serial.print(F(" / "));
-      Serial.println(NUM_LEDS);
-
+    // 檢查是否達到最大跳躍次數(完成所有階段)
+    if (jumpCount >= MAX_JUMP_COUNT)
+    {
+      Serial.println(F("\n🎉🎉🎉 恭喜完成所有階段!進入彩虹霓虹模式!🎉🎉🎉\n"));
+      isRainbowMode = true;
+      displayRainbowEffect();
+    }
+    else
+    {
       // 顯示當前累積的燈效
       displayCurrentLEDs();
     }
-    break;
-
-  case LANDING:
-    // 著地狀態是過渡狀態，立即轉回地面狀態
-    currentState = GROUNDED;
-    break;
   }
 }
 
 // ============================================================================
-// 檢查逾時並執行閃爍清空
+// 檢查逾時並直接重置
 // ============================================================================
 
 void checkIdleTimeout()
@@ -369,28 +383,53 @@ void checkIdleTimeout()
   // 如果有累積跳躍且超過逾時時間
   if (currentLEDCount > 0 && (millis() - lastJumpTime) > IDLE_TIMEOUT)
   {
-    Serial.println(F("[逾時] 超過閒置時間，準備閃爍後熄滅..."));
-    blinkAndClear();
+    Serial.println(F("[逾時] 超過閒置時間,直接重置跳躍計數..."));
+
+    // 清空 LED
+    clearLEDs();
+
+    // 重置計數和狀態
+    jumpCount = 0;
+    currentLEDCount = 0;
+    isRainbowMode = false;
+    rainbowHue = 0;
+
+    Serial.println(F("[重置] 已清空 LED 並重置跳躍計數"));
   }
 }
 
 // ============================================================================
-// 根據 LED 位置取得顏色（動態漸變）
+// 根據 LED 位置取得顏色（七彩分層效果）
 // ============================================================================
 
 CRGB getColorForPosition(int position, int totalLEDs)
 {
-  // 動態漸變：綠色 → 黃色 → 紅色
-  // 使用 HSV 色彩空間進行平滑過渡
-  // 色相 (Hue): 96 (綠) → 64 (黃) → 0 (紅)
+  // 七彩分層效果：每個階段填滿 NUM_LEDS 數量後才換下一個顏色
+  // 新顏色從底部開始填充，逐漸覆蓋舊顏色
 
-  // 計算當前位置的比例 (0.0 到 1.0)
-  float ratio = (float)position / (float)(totalLEDs - 1);
+  // 計算當前處於第幾個階段（0-6）
+  int currentStage = min(jumpCount / JUMPS_PER_STAGE, NUM_COLOR_STAGES - 1);
 
-  // 色相範圍：96 (綠色) 到 0 (紅色)
-  uint8_t hue = 96 - (uint8_t)(ratio * 96);
+  // 計算當前階段已點亮的 LED 數量（每跳一次亮 LEDS_PER_JUMP 顆）
+  int jumpInCurrentStage = jumpCount % JUMPS_PER_STAGE;
+  int ledsInCurrentStage = min(jumpInCurrentStage * LEDS_PER_JUMP, NUM_LEDS);
 
-  return CHSV(hue, 255, 255); // 全飽和度、全亮度
+  // 判斷當前 LED 位置應該顯示哪種顏色
+  if (position < ledsInCurrentStage)
+  {
+    // 在當前階段的填充範圍內，顯示當前階段顏色
+    return CHSV(RAINBOW_COLORS[currentStage], 255, 255);
+  }
+  else if (currentStage > 0)
+  {
+    // 超出當前階段範圍，顯示前一階段的顏色（保持舊顏色）
+    return CHSV(RAINBOW_COLORS[currentStage - 1], 255, 255);
+  }
+  else
+  {
+    // 第一階段且尚未填充到此位置，不顯示
+    return CRGB::Black;
+  }
 }
 
 // ============================================================================
@@ -399,18 +438,52 @@ CRGB getColorForPosition(int position, int totalLEDs)
 
 void displayCurrentLEDs()
 {
-  clearLEDs();
+  // 不需要清空 LED，讓已點亮的保持亮著，只更新顏色即可
+  // clearLEDs();  // ← 移除此行避免閃爍
+
+  // 計算當前顏色階段
+  int currentStage = min(jumpCount / JUMPS_PER_STAGE, NUM_COLOR_STAGES - 1);
+  int jumpInCurrentStage = jumpCount % JUMPS_PER_STAGE;
 
   // 輸出燈效資訊
   Serial.print(F("[燈效] 點亮 LED 數量: "));
   Serial.print(currentLEDCount);
   Serial.print(F(" / "));
-  Serial.println(NUM_LEDS);
+  Serial.print(NUM_LEDS);
+  Serial.print(F(" | 當前階段: "));
+  Serial.print(currentStage + 1);
+  Serial.print(F("/"));
+  Serial.print(NUM_COLOR_STAGES);
+  Serial.print(F(" (進度: "));
+  Serial.print(jumpInCurrentStage);
+  Serial.print(F("/"));
+  Serial.print(JUMPS_PER_STAGE);
+  Serial.println(F(")"));
 
-  // 動態設定每顆 LED 的顏色（漸變效果）
-  for (int i = 0; i < currentLEDCount; i++)
+  // 同步模式:4 條燈條顯示相同內容
+  if (SYNC_MODE)
   {
-    leds[i] = getColorForPosition(i, currentLEDCount);
+    // 計算顏色並同步設定到 4 條燈條
+    for (int i = 0; i < currentLEDCount; i++)
+    {
+      CRGB color = getColorForPosition(i, NUM_LEDS);
+      for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+      {
+        leds[strip][i] = color;
+      }
+    }
+  }
+  else
+  {
+    // 獨立控制模式(預留給未來擴展)
+    // TODO: 實作不同燈條的獨立燈效
+    for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+    {
+      for (int i = 0; i < currentLEDCount; i++)
+      {
+        leds[strip][i] = getColorForPosition(i, NUM_LEDS);
+      }
+    }
   }
 
   FastLED.show();
@@ -439,29 +512,29 @@ void blinkAndClear()
     {
       delay(10);
 
-      // 檢查是否有新的跳躍（玩家離地）
+      // 檢查是否有新的跳躍（狀態改變）
       bool currentReading = readSensorWithDebounce();
-      if (currentReading == HIGH && sensorState == HIGH && currentState == GROUNDED)
+      if (currentReading != lastStableState)
       {
         Serial.println(F("[閃爍] 偵測到新跳躍，中斷閃爍！"));
 
         // 恢復當前燈效
         displayCurrentLEDs();
-
-        // 啟動跳躍狀態
-        jumpStartTime = millis();
-        currentState = IN_AIR;
         isBlinking = false;
 
-        Serial.println(F("[狀態] 玩家離地！"));
+        // updateJumpState 會處理計數邏輯
         return; // 立即結束閃爍
       }
     }
 
-    // 點亮階段（顯示當前累積的燈數）
+    // 點亮階段（顯示當前累積的燈數）- 同步到 4 條燈條
     for (int j = 0; j < currentLEDCount; j++)
     {
-      leds[j] = getColorForPosition(j, currentLEDCount);
+      CRGB color = getColorForPosition(j, currentLEDCount);
+      for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+      {
+        leds[strip][j] = color;
+      }
     }
     FastLED.show();
 
@@ -470,21 +543,17 @@ void blinkAndClear()
     {
       delay(10);
 
-      // 檢查是否有新的跳躍（玩家離地）
+      // 檢查是否有新的跳躍（狀態改變）
       bool currentReading = readSensorWithDebounce();
-      if (currentReading == HIGH && sensorState == HIGH && currentState == GROUNDED)
+      if (currentReading != lastStableState)
       {
         Serial.println(F("[閃爍] 偵測到新跳躍，中斷閃爍！"));
 
         // 恢復當前燈效
         displayCurrentLEDs();
-
-        // 啟動跳躍狀態
-        jumpStartTime = millis();
-        currentState = IN_AIR;
         isBlinking = false;
 
-        Serial.println(F("[狀態] 玩家離地！"));
+        // updateJumpState 會處理計數邏輯
         return; // 立即結束閃爍
       }
     }
@@ -493,12 +562,14 @@ void blinkAndClear()
   // 閃爍完成後才清空
   clearLEDs();
 
-  // 重置計數
+  // 重置計數和狀態
   jumpCount = 0;
   currentLEDCount = 0;
   isBlinking = false;
+  isRainbowMode = false;
+  rainbowHue = 0;
 
-  Serial.println(F("[閃爍] 完成，已重置跳躍計數"));
+  Serial.println(F("[閃爍] 完成,已重置跳躍計數"));
 }
 
 // ============================================================================
@@ -512,57 +583,36 @@ void clearLEDs()
 }
 
 // ============================================================================
-// LED 測試動畫（逐顆點亮測試）
+// LED 測試動畫(逐顆點亮測試 - 4 條燈條版本)
 // ============================================================================
 
 void testLEDPattern()
 {
   Serial.println(F("開始 LED 診斷測試..."));
-  Serial.print(F("LED 數量設定: "));
+  Serial.print(F("燈條數量: "));
+  Serial.println(NUM_LED_STRIPS);
+  Serial.print(F("每條 LED 數量: "));
   Serial.println(NUM_LEDS);
   Serial.print(F("LED 腳位: "));
-  Serial.println(LED_PIN);
+  for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+  {
+    Serial.print(LED_PINS[strip]);
+    if (strip < NUM_LED_STRIPS - 1)
+      Serial.print(F(", "));
+  }
+  Serial.println();
   Serial.print(F("亮度設定: "));
   Serial.println(LED_BRIGHTNESS);
 
-  // 測試 1：點亮第一顆（紅色）
-  Serial.println(F("\n測試 1: 第一顆 LED (紅色)"));
-  leds[0] = CRGB(255, 0, 0);
-  FastLED.show();
-  delay(1000);
-
-  // 測試 2：點亮前 3 顆（綠色）
-  Serial.println(F("測試 2: 前 3 顆 LED (綠色)"));
-  leds[0] = CRGB(0, 255, 0);
-  leds[1] = CRGB(0, 255, 0);
-  leds[2] = CRGB(0, 255, 0);
-  FastLED.show();
-  delay(1000);
-
-  // 測試 3：點亮前 10 顆（藍色）
-  Serial.println(F("測試 3: 前 10 顆 LED (藍色)"));
-  for (int i = 0; i < 10; i++)
-  {
-    leds[i] = CRGB(0, 0, 255);
-  }
-  FastLED.show();
-  delay(1000);
-
-  // 測試 4：全部點亮（白色）
-  Serial.println(F("測試 4: 全部點亮 (白色)"));
-  for (int i = 0; i < NUM_LEDS; i++)
-  {
-    leds[i] = CRGB(255, 255, 255);
-  }
-  FastLED.show();
-  delay(2000);
-
-  // 測試 5：逐顆點亮掃描
-  Serial.println(F("測試 5: 逐顆掃描..."));
+  // 測試 5:逐顆點亮掃描(4 條同步)
+  Serial.println(F("測試 5: 逐顆掃描 (4 條同步)..."));
   clearLEDs();
   for (int i = 0; i < NUM_LEDS; i++)
   {
-    leds[i] = CRGB(255, 255, 255);
+    for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+    {
+      leds[strip][i] = CRGB(255, 255, 255);
+    }
     FastLED.show();
     delay(50);
 
@@ -577,32 +627,41 @@ void testLEDPattern()
 
   delay(1000);
 
-  // 測試 6：三原色全亮測試
-  Serial.println(F("測試 6: 三原色測試..."));
+  // 測試 6:三原色全亮測試(4 條同步)
+  Serial.println(F("測試 6: 三原色測試 (4 條同步)..."));
 
   // 紅色
   Serial.println(F("  全部紅色"));
-  for (int i = 0; i < NUM_LEDS; i++)
+  for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
   {
-    leds[i] = CRGB(255, 0, 0);
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[strip][i] = CRGB(255, 0, 0);
+    }
   }
   FastLED.show();
   delay(1000);
 
   // 綠色
   Serial.println(F("  全部綠色"));
-  for (int i = 0; i < NUM_LEDS; i++)
+  for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
   {
-    leds[i] = CRGB(0, 255, 0);
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[strip][i] = CRGB(0, 255, 0);
+    }
   }
   FastLED.show();
   delay(1000);
 
   // 藍色
   Serial.println(F("  全部藍色"));
-  for (int i = 0; i < NUM_LEDS; i++)
+  for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
   {
-    leds[i] = CRGB(0, 0, 255);
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[strip][i] = CRGB(0, 0, 255);
+    }
   }
   FastLED.show();
   delay(1000);
@@ -613,11 +672,116 @@ void testLEDPattern()
   delay(500);
 
   Serial.println(F("=========================================="));
-  Serial.println(F("診斷結果："));
-  Serial.println(F("如果只看到第一顆燈亮："));
+  Serial.println(F("診斷結果:"));
+  Serial.println(F("如果只看到第一顆燈亮:"));
   Serial.println(F("  1. 檢查 BI 腳位是否接地"));
   Serial.println(F("  2. 檢查資料線是否正確連接"));
   Serial.println(F("  3. 嘗試將色序改為 GRB"));
   Serial.println(F("  4. 檢查電源供應是否足夠"));
   Serial.println(F("==========================================\n"));
+}
+
+// ============================================================================
+// 顯示彩虹霓虹燈效(完成所有階段後的慶祝動畫)
+// ============================================================================
+
+void displayRainbowEffect()
+{
+  Serial.println(F("[彩虹霓虹] 開始彩虹霓虹燈效!"));
+
+  // 同步模式:4 條燈條顯示相同的彩虹效果
+  if (SYNC_MODE)
+  {
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      // 讓每顆 LED 的色相錯開,形成彩虹漸層
+      uint8_t hue = rainbowHue + (i * 256 / NUM_LEDS);
+      CRGB color = CHSV(hue, 255, 255);
+
+      // 同步設定到 4 條燈條
+      for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+      {
+        leds[strip][i] = color;
+      }
+    }
+  }
+  else
+  {
+    // 獨立控制模式(預留給未來擴展)
+    // TODO: 實作不同燈條的獨立彩虹效果(例如不同相位偏移)
+    for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+    {
+      for (int i = 0; i < NUM_LEDS; i++)
+      {
+        uint8_t hue = rainbowHue + (i * 256 / NUM_LEDS);
+        leds[strip][i] = CHSV(hue, 255, 255);
+      }
+    }
+  }
+
+  FastLED.show();
+  lastRainbowUpdate = millis();
+}
+
+// ============================================================================
+// 更新彩虹霓虹動畫(持續循環色相變化)
+// ============================================================================
+
+void updateRainbowEffect()
+{
+  // 檢查是否到達更新間隔
+  if (millis() - lastRainbowUpdate >= RAINBOW_UPDATE_INTERVAL)
+  {
+    // 更新色相值(0-255 循環)
+    rainbowHue += RAINBOW_HUE_STEP;
+
+    // 同步模式:4 條燈條顯示相同的動畫
+    if (SYNC_MODE)
+    {
+      for (int i = 0; i < NUM_LEDS; i++)
+      {
+        // 讓每顆 LED 的色相錯開,形成流動的彩虹效果
+        uint8_t hue = rainbowHue + (i * 256 / NUM_LEDS);
+        CRGB color = CHSV(hue, 255, 255);
+
+        // 同步設定到 4 條燈條
+        for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+        {
+          leds[strip][i] = color;
+        }
+      }
+    }
+    else
+    {
+      // 獨立控制模式(預留給未來擴展)
+      for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+      {
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+          uint8_t hue = rainbowHue + (i * 256 / NUM_LEDS);
+          leds[strip][i] = CHSV(hue, 255, 255);
+        }
+      }
+    }
+
+    FastLED.show();
+    lastRainbowUpdate = millis();
+  }
+
+  // 在彩虹模式下也檢查逾時,讓使用者可以重新開始
+  if (isRainbowMode && (millis() - lastJumpTime) > IDLE_TIMEOUT)
+  {
+    Serial.println(F("[彩虹霓虹] 超過閒置時間,退出彩虹模式..."));
+
+    // 清空 LED
+    clearLEDs();
+
+    // 重置所有狀態
+    jumpCount = 0;
+    currentLEDCount = 0;
+    isRainbowMode = false;
+    rainbowHue = 0;
+
+    Serial.println(F("[重置] 已退出彩虹模式,可重新開始跳躍"));
+  }
 }
