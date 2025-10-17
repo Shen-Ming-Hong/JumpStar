@@ -73,7 +73,13 @@ const uint8_t RAINBOW_COLORS[NUM_COLOR_STAGES] = {
     200  // 紫紅色 (Magenta) - 原本 192,調整為偏紅的紫
 };
 
-// 彩虹霓虹燈效參數
+// 慶祝模式參數
+const unsigned long CELEBRATION_BLINK_DURATION = 5000; // 彩色閃爍持續時間(5秒)
+const unsigned long CELEBRATION_BLINK_INTERVAL = 200;  // 閃爍間隔(毫秒)
+const unsigned long BREATHING_FADE_DURATION = 3000;    // 呼吸燈淡滅持續時間(3秒)
+const unsigned long BREATHING_UPDATE_INTERVAL = 30;    // 呼吸燈更新間隔(毫秒)
+
+// 彩虹霓虹燈效參數(保留供未來使用)
 const unsigned long RAINBOW_UPDATE_INTERVAL = 30; // 霓虹燈更新間隔(毫秒)
 const uint8_t RAINBOW_HUE_STEP = 2;               // 每次色相變化量
 
@@ -103,6 +109,17 @@ bool isRainbowMode = false;          // 是否進入彩虹霓虹模式
 uint8_t rainbowHue = 0;              // 彩虹霓虹色相值
 unsigned long lastRainbowUpdate = 0; // 上次霓虹燈更新時間
 
+// 慶祝模式相關變數
+bool isCelebrationMode = false;         // 是否進入慶祝模式
+bool isColorBlinking = false;           // 是否正在彩色閃爍
+bool isBreathingFade = false;           // 是否正在呼吸燈淡滅
+unsigned long celebrationStartTime = 0; // 慶祝模式開始時間
+unsigned long lastBlinkTime = 0;        // 上次閃爍時間
+unsigned long breathingStartTime = 0;   // 呼吸燈開始時間
+unsigned long lastBreathingUpdate = 0;  // 上次呼吸燈更新時間
+bool blinkState = false;                // 閃爍狀態(開/關)
+uint8_t currentBrightness = 255;        // 當前亮度(用於呼吸燈)
+
 // ============================================================================
 // 函式宣告
 // ============================================================================
@@ -121,6 +138,10 @@ void clearLEDs();                                  // 清空 LED
 void testLEDPattern();                             // LED 測試動畫
 void displayRainbowEffect();                       // 顯示彩虹霓虹燈效
 void updateRainbowEffect();                        // 更新彩虹霓虹動畫
+void startCelebration();                           // 開始慶祝模式(彩色閃爍)
+void updateCelebration();                          // 更新慶祝模式
+void updateColorBlink();                           // 更新彩色閃爍效果
+void updateBreathingFade();                        // 更新呼吸燈淡滅效果
 
 // ============================================================================
 // 初始化設定
@@ -201,8 +222,13 @@ void loop()
     lastPrintedState = sensorState;
   }
 
+  // 如果在慶祝模式,更新慶祝動畫
+  if (isCelebrationMode)
+  {
+    updateCelebration();
+  }
   // 如果在彩虹霓虹模式,持續更新動畫
-  if (isRainbowMode)
+  else if (isRainbowMode)
   {
     updateRainbowEffect();
   }
@@ -361,9 +387,8 @@ void updateJumpState()
     // 檢查是否達到最大跳躍次數(完成所有階段)
     if (jumpCount >= MAX_JUMP_COUNT)
     {
-      Serial.println(F("\n🎉🎉🎉 恭喜完成所有階段!進入彩虹霓虹模式!🎉🎉🎉\n"));
-      isRainbowMode = true;
-      displayRainbowEffect();
+      Serial.println(F("\n🎉🎉🎉 恭喜完成所有階段!進入慶祝模式!🎉🎉🎉\n"));
+      startCelebration();
     }
     else
     {
@@ -391,6 +416,9 @@ void checkIdleTimeout()
     jumpCount = 0;
     currentLEDCount = 0;
     isRainbowMode = false;
+    isCelebrationMode = false;
+    isColorBlinking = false;
+    isBreathingFade = false;
     rainbowHue = 0;
 
     Serial.println(F("[重置] 已清空 LED 並重置跳躍計數"));
@@ -696,8 +724,178 @@ void updateRainbowEffect()
     jumpCount = 0;
     currentLEDCount = 0;
     isRainbowMode = false;
+    isCelebrationMode = false;
+    isColorBlinking = false;
+    isBreathingFade = false;
     rainbowHue = 0;
 
     Serial.println(F("[重置] 已退出彩虹模式,可重新開始跳躍"));
+  }
+}
+
+// ============================================================================
+// 開始慶祝模式(彩色閃爍 → 呼吸燈淡滅)
+// ============================================================================
+
+void startCelebration()
+{
+  Serial.println(F("[慶祝] 開始彩色閃爍效果..."));
+
+  isCelebrationMode = true;
+  isColorBlinking = true;
+  isBreathingFade = false;
+  celebrationStartTime = millis();
+  lastBlinkTime = millis();
+  blinkState = true;
+
+  // 先點亮所有 LED 為七彩效果
+  for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+  {
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      // 使用彩虹漸層作為初始顏色
+      uint8_t hue = (i * 256 / NUM_LEDS);
+      leds[strip][i] = CHSV(hue, 255, 255);
+    }
+  }
+  FastLED.show();
+}
+
+// ============================================================================
+// 更新慶祝模式主控制
+// ============================================================================
+
+void updateCelebration()
+{
+  if (isColorBlinking)
+  {
+    updateColorBlink();
+  }
+  else if (isBreathingFade)
+  {
+    updateBreathingFade();
+  }
+}
+
+// ============================================================================
+// 更新彩色閃爍效果(持續 5 秒)
+// ============================================================================
+
+void updateColorBlink()
+{
+  unsigned long currentTime = millis();
+
+  // 檢查是否已完成閃爍階段
+  if (currentTime - celebrationStartTime >= CELEBRATION_BLINK_DURATION)
+  {
+    Serial.println(F("[慶祝] 彩色閃爍完成,開始呼吸燈淡滅..."));
+
+    isColorBlinking = false;
+    isBreathingFade = true;
+    breathingStartTime = millis();
+    lastBreathingUpdate = millis();
+    currentBrightness = 255;
+
+    // 重新點亮所有 LED 準備呼吸燈
+    for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+    {
+      for (int i = 0; i < NUM_LEDS; i++)
+      {
+        uint8_t hue = (i * 256 / NUM_LEDS);
+        leds[strip][i] = CHSV(hue, 255, 255);
+      }
+    }
+    FastLED.setBrightness(255);
+    FastLED.show();
+    return;
+  }
+
+  // 閃爍效果:定時切換開關
+  if (currentTime - lastBlinkTime >= CELEBRATION_BLINK_INTERVAL)
+  {
+    blinkState = !blinkState;
+    lastBlinkTime = currentTime;
+
+    if (blinkState)
+    {
+      // 點亮:顯示彩虹漸層效果
+      for (int strip = 0; strip < NUM_LED_STRIPS; strip++)
+      {
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+          // 每次閃爍時改變色相,製造動態效果
+          uint8_t hue = ((currentTime / 100) + (i * 256 / NUM_LEDS)) % 256;
+          leds[strip][i] = CHSV(hue, 255, 255);
+        }
+      }
+      FastLED.setBrightness(LED_BRIGHTNESS);
+      FastLED.show();
+    }
+    else
+    {
+      // 淡滅
+      clearLEDs();
+    }
+  }
+}
+
+// ============================================================================
+// 更新呼吸燈淡滅效果(漸減亮度直到完全淡滅)
+// ============================================================================
+
+void updateBreathingFade()
+{
+  unsigned long currentTime = millis();
+
+  // 檢查是否到達更新間隔
+  if (currentTime - lastBreathingUpdate < BREATHING_UPDATE_INTERVAL)
+  {
+    return;
+  }
+
+  lastBreathingUpdate = currentTime;
+
+  // 計算已經過的時間比例
+  unsigned long elapsedTime = currentTime - breathingStartTime;
+
+  if (elapsedTime >= BREATHING_FADE_DURATION)
+  {
+    // 呼吸燈完成,完全淡滅並重置所有狀態
+    Serial.println(F("[慶祝] 呼吸燈淡滅完成,重置系統..."));
+
+    clearLEDs();
+    FastLED.setBrightness(LED_BRIGHTNESS); // 恢復原始亮度設定
+
+    // 重置所有狀態
+    jumpCount = 0;
+    currentLEDCount = 0;
+    isCelebrationMode = false;
+    isColorBlinking = false;
+    isBreathingFade = false;
+    isRainbowMode = false;
+    rainbowHue = 0;
+
+    Serial.println(F("[重置] 慶祝模式結束,可重新開始跳躍\n"));
+    return;
+  }
+
+  // 計算當前亮度(從 255 漸減到 0)
+  float progress = (float)elapsedTime / BREATHING_FADE_DURATION;
+  currentBrightness = (uint8_t)(255 * (1.0 - progress));
+
+  // 套用呼吸燈亮度
+  FastLED.setBrightness(currentBrightness);
+  FastLED.show();
+
+  // 每 500ms 輸出進度
+  static unsigned long lastProgressPrint = 0;
+  if (currentTime - lastProgressPrint >= 500)
+  {
+    Serial.print(F("[呼吸燈] 亮度: "));
+    Serial.print(currentBrightness);
+    Serial.print(F(" / 255 ("));
+    Serial.print((int)(progress * 100));
+    Serial.println(F("%)"));
+    lastProgressPrint = currentTime;
   }
 }
